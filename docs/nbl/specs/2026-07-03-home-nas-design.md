@@ -96,6 +96,13 @@ HY2 Server 配置要点：
 | AriaNg | Docker，`--network host` | Aria2 WebUI |
 | HY2 Server | 裸机安装 | 供 Mac Client 连接，提供文件回传通道 |
 
+**两条下载路径：**
+
+| 路径 | 触发方式 | 下载到 | 最终去向 |
+|------|----------|--------|----------|
+| 网盘 | OpenList 内置调用 qB/Aria2 | qB/Aria2 默认下载路径 | OpenList 自动上传网盘 |
+| Mac 本地盘 | 手动打开 qB/Aria2 WebUI，选择 `/opt/mac/` | `/opt/mac/` | Mac rsync 回传至外接盘 |
+
 Caddy 反代：
 - `nllist.dickgroup.xyz` -> `127.0.0.1:5244`
 - `qb.dickgroup.xyz` -> `127.0.0.1:8080`
