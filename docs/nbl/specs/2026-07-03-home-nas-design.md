@@ -91,6 +91,7 @@ HY2 Server 配置要点：
 | Caddy | 裸机安装 | 三个子域名 HTTPS 反代 |
 | OpenList | 一键脚本裸装 | 网盘挂载 + WebDAV，监听 5244 |
 | qBittorrent | Docker，`--network host` | BT 下载，WebUI 8080 |
+| 下载目录 | /opt/mac/ | qB/Aria2 下载完成存放目录，供 Mac 回传 |
 | Aria2 | Docker，`--network host` | HTTP/磁力下载，RPC 6800 |
 | AriaNg | Docker，`--network host` | Aria2 WebUI |
 | HY2 Server | 裸机安装 | 供 Mac Client 连接，提供文件回传通道 |
@@ -159,11 +160,14 @@ Mac HY2 Client tcpForwarding：
 REMOTE_HOST="127.0.0.1"
 REMOTE_PORT="9092"
 REMOTE_USER="root"
-REMOTE_DIR="/download/"
+REMOTE_DIR="/opt/mac/"
 LOCAL_DIR="/Volumes/外接盘/nas-downloads/"
 
 # rsync 拉文件（增量、断点续传、传完删源）
+# --exclude 跳过未完成的下载文件（qB 的 .!qB、Aria2 的 .aria2）
 rsync -av --remove-source-files \
+  --exclude="*.!qB" \
+  --exclude="*.aria2" \
   -e "ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no" \
   "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR" "$LOCAL_DIR"
 
