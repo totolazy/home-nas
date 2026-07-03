@@ -78,3 +78,36 @@ fi
 
 echo ""
 log_info "开始部署..."
+# =============================================
+# Step 2: 安装 Homebrew 和依赖
+# =============================================
+
+log_step "Step 2: 安装 Homebrew 和依赖"
+
+# 检查 Homebrew
+if command -v brew &>/dev/null; then
+    BREW_PREFIX=$(brew --prefix)
+    log_info "Homebrew 已安装 (${BREW_PREFIX})"
+else
+    log_warn "Homebrew 未安装，开始安装..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    # Apple Silicon 和 Intel 路径不同
+    if [[ -f /opt/homebrew/bin/brew ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+        BREW_PREFIX="/opt/homebrew"
+    elif [[ -f /usr/local/bin/brew ]]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+        BREW_PREFIX="/usr/local"
+    fi
+    log_info "Homebrew 安装完成 (${BREW_PREFIX})"
+fi
+
+# 安装 hysteria
+if command -v hysteria &>/dev/null; then
+    log_info "hysteria 已安装: $(hysteria version 2>&1 | head -1)"
+else
+    log_info "安装 hysteria..."
+    brew install hysteria
+    log_info "hysteria 安装完成: $(hysteria version 2>&1 | head -1)"
+fi
