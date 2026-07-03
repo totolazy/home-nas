@@ -194,3 +194,24 @@ tls:
 YAMLEOF
 
 log_info "上海 HY2 Client 配置已写入 $HYS_DIR/shanghai.yaml"
+# =============================================
+# Step 5: 生成 HY2 Client 配置 - 至荷兰
+# =============================================
+
+log_step "Step 5: 生成 HY2 Client 配置 (荷兰)"
+
+cat > "$HYS_DIR/netherlands.yaml" << YAMLEOF
+server: ${NL_IP}:${NL_HY2_PORT}
+
+auth: ${NL_HY2_PASSWORD}
+
+tls:
+  sni: ${NL_IP}
+  insecure: true
+
+tcpForwarding:
+  - listen: 127.0.0.1:9092
+    remote: 127.0.0.1:22
+YAMLEOF
+
+log_info "荷兰 HY2 Client 配置已写入 $HYS_DIR/netherlands.yaml"
