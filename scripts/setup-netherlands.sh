@@ -173,13 +173,21 @@ if systemctl is-active --quiet openlist 2>/dev/null; then
 else
     log_info "Installing OpenList..."
     curl -fsSL https://res.oplist.org/script/v4.sh -o install-openlist-v4.sh
-    bash install-openlist-v4.sh
+    # Interactive flow: select "1" (install directly), then Enter, Enter again
+    printf '1\n\n\n' | bash install-openlist-v4.sh 2>&1 | tee /tmp/openlist-install.log
+    # Capture the last 15 lines of install output (contains credentials)
+    OL_CREDENTIALS=$(tail -20 /tmp/openlist-install.log 2>/dev/null || true)
     rm -f install-openlist-v4.sh
     sleep 2
     systemctl enable --now openlist 2>/dev/null || {
         log_warn "OpenList systemd service not auto-created, starting manually..."
         nohup /opt/openlist/openlist > /var/log/openlist.log 2>&1 &
     }
+    if [ -n "$OL_CREDENTIALS" ]; then
+        log_info "OpenList credentials:"
+        echo "$OL_CREDENTIALS" | while IFS= read -r line; do echo "    $line"; done
+    fi
+    rm -f /tmp/openlist-install.log
     log_info "OpenList started on port: ${OPENLIST_PORT}"
 fi
 
