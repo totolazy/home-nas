@@ -111,3 +111,67 @@ else
     brew install hysteria
     log_info "hysteria 安装完成: $(hysteria version 2>&1 | head -1)"
 fi
+# =============================================
+# Step 3: 安装 OpenList
+# =============================================
+
+log_step "Step 3: 安装 OpenList"
+
+if command -v openlist &>/dev/null; then
+    log_info "OpenList 已安装"
+else
+    log_info "开始安装 OpenList..."
+    curl -fsSL https://raw.githubusercontent.com/OpenListTeam/OpenList/main/install.sh | bash
+fi
+
+# 找到 openlist 二进制位置
+OPENLIST_BIN=""
+for candidate in /usr/local/bin/openlist /opt/openlist/openlist /opt/homebrew/bin/openlist; do
+    if [[ -x "$candidate" ]]; then
+        OPENLIST_BIN="$candidate"
+        break
+    fi
+done
+
+if [[ -z "$OPENLIST_BIN" ]]; then
+    log_error "未找到 openlist 二进制，请确认 OpenList 安装成功后再运行本脚本。"
+    exit 1
+fi
+log_info "OpenList 二进制: ${OPENLIST_BIN}"
+
+# 创建 LaunchAgent（macOS 没有 systemd）
+OPENLIST_PLIST="$HOME/Library/LaunchAgents/com.nas.openlist.plist"
+mkdir -p "$HOME/Library/LaunchAgents"
+
+if [[ -f "$OPENLIST_PLIST" ]]; then
+    log_info "OpenList LaunchAgent 已存在，先停止..."
+    launchctl bootout "gui/$(id -u)" "$OPENLIST_PLIST" 2>/dev/null || true
+fi
+
+cat > "$OPENLIST_PLIST" << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nas.openlist</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${OPENLIST_BIN}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/var/log/openlist.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/openlist.log</string>
+</dict>
+</plist>
+PLISTEOF
+
+log_info "加载 OpenList LaunchAgent..."
+launchctl bootstrap "gui/$(id -u)" "$OPENLIST_PLIST"
+log_info "OpenList LaunchAgent 已加载并启动"
