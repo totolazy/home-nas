@@ -232,3 +232,44 @@ README 包含：架构说明图、前置条件、三条一键部署命令、部�
 - **可靠**：rsync 支持断点续传，HY2 自动重连
 - **可维护**：一键脚本部署，配置集中在脚本变量中
 - **性能**：HY2 纯 UDP 加速，荷兰服务直连不绕路，网盘 302 直连不经过中转
+
+## 10. 脚本设计要求
+
+### 10.1 交互式输入
+
+所有脚本启动后通过终端交互引导用户输入必要参数，不硬编码敏感信息。其余参数使用默认值，回车即确认。
+
+Mac Mini 脚本需输入的参数：
+- 上海服务器 IP、HY2 端口、认证密码
+- 荷兰服务器 IP、HY2 端口、认证密码
+- 外接盘挂载路径
+
+上海脚本需输入的参数：
+- HY2 认证密码
+- 域名
+
+荷兰脚本需输入的参数：
+- HY2 认证密码
+- 三个子域名
+
+### 10.2 开机自启与后台运行
+
+- **Linux**：所有服务通过 systemd 管理，`systemctl enable` 开机自启
+- **macOS**：HY2 Client 使用 LaunchAgent，OpenList 也用 LaunchAgent，crontab 定时回传
+
+### 10.3 卸载脚本
+
+每个节点配 `teardown-*.sh`，一键清理项目痕迹，不破坏系统原有环境：
+
+| 脚本 | 清理内容 |
+|------|----------|
+| `teardown-shanghai.sh` | stop/disable Caddy 配置 + HY2 systemd 服务 → 删除项目配置文件/二进制 |
+| `teardown-netherlands.sh` | 同上 + `docker rm -f` qB/Aria2/AriaNg + `rm -rf /opt/mac/` + 删除 OpenList |
+| `teardown-macmini.sh` | 停止 LaunchAgent + `brew uninstall hysteria` + 删除 OpenList + 清除 crontab + 删除项目目录 |
+
+不删除：Homebrew、Docker Engine、Caddy 软件包、系统级包。
+
+### 10.4 测试策略
+
+- **Linux 脚本**：在本地 Linux 虚拟机（Debian/Ubuntu）中测试，验证部署+卸载完整流程
+- **macOS 脚本**：结构已验证，在 Mac Mini 部署时直接使用，有小问题现场修复

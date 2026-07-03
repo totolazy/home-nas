@@ -461,3 +461,158 @@ ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null 
 ---
 
 **Execution Mode:** parallel
+
+---
+
+### Task 6: `teardown-shanghai.sh` —— 上海 VPS 卸载
+
+**Dependencies:** Task 1
+**Parallelizable:** No（依赖Task 1完成）
+
+**Files:**
+- Create: `scripts/teardown-shanghai.sh`
+
+- [ ] **Step 1: 编写卸载脚本**
+
+```bash
+#!/bin/bash
+echo "=== 上海 VPS 卸载脚本 ==="
+
+# 停止并禁用 HY2
+if systemctl is-active --quiet hysteria-server; then
+    echo "停止 HY2 Server..."
+    systemctl stop hysteria-server
+    systemctl disable hysteria-server
+fi
+
+# 删除 HY2 文件
+rm -f /etc/systemd/system/hysteria-server.service
+systemctl daemon-reload
+rm -rf /etc/hysteria
+rm -f /usr/local/bin/hysteria
+
+# 还原 Caddy 配置（仅删除项目配置，不动 Caddy 软件）
+if [ -f /etc/caddy/Caddyfile ]; then
+    echo "清除 Caddy 配置..."
+    > /etc/caddy/Caddyfile
+    systemctl restart caddy
+fi
+
+# 删除项目目录
+rm -rf /opt/hysteria
+
+echo "=== 卸载完成 ==="
+```
+
+- [ ] **Step 2: Commit**
+
+### Task 7: `teardown-netherlands.sh` —— 荷兰 VPS 卸载
+
+**Dependencies:** Task 2
+**Parallelizable:** No（依赖Task 2完成）
+
+**Files:**
+- Create: `scripts/teardown-netherlands.sh`
+
+- [ ] **Step 1: 编写卸载脚本**
+
+```bash
+#!/bin/bash
+echo "=== 荷兰 VPS 卸载脚本 ==="
+
+# 停止并删除 Docker 容器
+for container in qbittorrent aria2 ariang; do
+    if docker ps -a --format "{{.Names}}" | grep -q "^${container}$"; then
+        echo "删除容器: $container"
+        docker rm -f "$container"
+    fi
+done
+
+# 删除 Docker 相关目录（可选，保留数据时注释掉）
+rm -rf /opt/qbittorrent-config /opt/aria2-config
+
+# 删除下载目录
+rm -rf /opt/mac
+
+# 停止并删除 HY2
+if systemctl is-active --quiet hysteria-server; then
+    systemctl stop hysteria-server
+    systemctl disable hysteria-server
+fi
+rm -f /etc/systemd/system/hysteria-server.service
+systemctl daemon-reload
+rm -rf /etc/hysteria
+rm -f /usr/local/bin/hysteria
+
+# 停止并删除 OpenList
+if systemctl is-active --quiet openlist; then
+    systemctl stop openlist
+    systemctl disable openlist
+fi
+rm -f /etc/systemd/system/openlist.service
+systemctl daemon-reload
+# OpenList 安装路径根据实际情况调整
+rm -rf /opt/openlist
+
+# 还原 Caddy
+if [ -f /etc/caddy/Caddyfile ]; then
+    > /etc/caddy/Caddyfile
+    systemctl restart caddy
+fi
+
+echo "=== 卸载完成 ==="
+```
+
+- [ ] **Step 2: Commit**
+
+### Task 8: `teardown-macmini.sh` —— Mac Mini 卸载
+
+**Dependencies:** Task 3
+**Parallelizable:** No（依赖Task 3完成）
+
+**Files:**
+- Create: `scripts/teardown-macmini.sh`
+
+- [ ] **Step 1: 编写卸载脚本**
+
+```bash
+#!/bin/bash
+echo "=== Mac Mini 卸载脚本 ==="
+
+# 停止并删除 LaunchAgents
+for agent in com.nas.hysteria-shanghai com.nas.hysteria-netherlands; do
+    PLIST="$HOME/Library/LaunchAgents/${agent}.plist"
+    if [ -f "$PLIST" ]; then
+        echo "卸载 LaunchAgent: $agent"
+        launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null
+        rm -f "$PLIST"
+    fi
+done
+
+# 删除 crontab 中的回传任务
+crontab -l 2>/dev/null | grep -v "pullback.sh" | crontab -
+
+# 卸载 hysteria（保留 brew 环境）
+if brew list --formula | grep -q "^hysteria$"; then
+    echo "卸载 hysteria..."
+    brew uninstall hysteria
+fi
+
+# 删除项目目录
+rm -rf /opt/hysteria
+rm -rf /opt/scripts
+rm -f /var/log/nas-pullback.log
+
+# 删除 OpenList（根据实际安装路径）
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.openlist.plist 2>/dev/null
+rm -f ~/Library/LaunchAgents/com.openlist.plist
+rm -rf /opt/openlist
+
+echo "=== 卸载完成 ==="
+```
+
+- [ ] **Step 2: Commit**
+
+---
+
+**Execution Mode:** parallel
