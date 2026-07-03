@@ -215,3 +215,94 @@ tcpForwarding:
 YAMLEOF
 
 log_info "荷兰 HY2 Client 配置已写入 $HYS_DIR/netherlands.yaml"
+# =============================================
+# Step 6: 创建 HY2 LaunchAgents
+# =============================================
+
+log_step "Step 6: 创建 HY2 LaunchAgents"
+
+# 定位 hysteria 二进制
+HYS_BIN=""
+for candidate in /opt/homebrew/bin/hysteria /usr/local/bin/hysteria; do
+    if [[ -x "$candidate" ]]; then
+        HYS_BIN="$candidate"
+        break
+    fi
+done
+if [[ -z "$HYS_BIN" ]]; then
+    HYS_BIN="$(command -v hysteria)"
+fi
+log_info "hysteria 二进制: ${HYS_BIN}"
+
+LA_DIR="$HOME/Library/LaunchAgents"
+mkdir -p "$LA_DIR"
+
+# --- 上海 HY2 Client LaunchAgent ---
+SH_AGENT="$LA_DIR/com.nas.hysteria-shanghai.plist"
+if [[ -f "$SH_AGENT" ]]; then
+    launchctl bootout "gui/$(id -u)" "$SH_AGENT" 2>/dev/null || true
+fi
+
+cat > "$SH_AGENT" << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nas.hysteria-shanghai</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${HYS_BIN}</string>
+        <string>-c</string>
+        <string>${HYS_DIR}/shanghai.yaml</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/var/log/hysteria-shanghai.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/hysteria-shanghai.log</string>
+</dict>
+</plist>
+PLISTEOF
+
+launchctl bootstrap "gui/$(id -u)" "$SH_AGENT"
+log_info "上海 HY2 Client LaunchAgent 已加载"
+
+# --- 荷兰 HY2 Client LaunchAgent ---
+NL_AGENT="$LA_DIR/com.nas.hysteria-netherlands.plist"
+if [[ -f "$NL_AGENT" ]]; then
+    launchctl bootout "gui/$(id -u)" "$NL_AGENT" 2>/dev/null || true
+fi
+
+cat > "$NL_AGENT" << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nas.hysteria-netherlands</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${HYS_BIN}</string>
+        <string>-c</string>
+        <string>${HYS_DIR}/netherlands.yaml</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/var/log/hysteria-netherlands.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/hysteria-netherlands.log</string>
+</dict>
+</plist>
+PLISTEOF
+
+launchctl bootstrap "gui/$(id -u)" "$NL_AGENT"
+log_info "荷兰 HY2 Client LaunchAgent 已加载"
