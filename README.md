@@ -34,7 +34,7 @@
 
  ## 前置条件
 
- 1. **域名**：`dickgroup.xyz` 托管在 Cloudflare
+ 1. **域名**：托管在 Cloudflare
  2. **DNS 记录**（提前在 Cloudflare 添加）：
     - `域名` → A → 国内服务器 IP
     - `域名` → A → 国外服务器 IP
