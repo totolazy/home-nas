@@ -175,3 +175,22 @@ PLISTEOF
 log_info "加载 OpenList LaunchAgent..."
 launchctl bootstrap "gui/$(id -u)" "$OPENLIST_PLIST"
 log_info "OpenList LaunchAgent 已加载并启动"
+# =============================================
+# Step 4: 生成 HY2 Client 配置 - 至上海
+# =============================================
+
+log_step "Step 4: 生成 HY2 Client 配置 (上海)"
+
+mkdir -p "$HYS_DIR"
+
+cat > "$HYS_DIR/shanghai.yaml" << YAMLEOF
+server: ${SHANGHAI_IP}:${SHANGHAI_HY2_PORT}
+
+auth: ${SHANGHAI_HY2_PASSWORD}
+
+tls:
+  sni: ${SHANGHAI_IP}
+  insecure: true
+YAMLEOF
+
+log_info "上海 HY2 Client 配置已写入 $HYS_DIR/shanghai.yaml"
