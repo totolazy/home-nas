@@ -306,3 +306,45 @@ PLISTEOF
 
 launchctl bootstrap "gui/$(id -u)" "$NL_AGENT"
 log_info "荷兰 HY2 Client LaunchAgent 已加载"
+# =============================================
+# Step 7: 生成 rsync 回传脚本
+# =============================================
+
+log_step "Step 7: 生成 rsync 回传脚本"
+
+mkdir -p "$SCRIPTS_DIR"
+mkdir -p "$LOCAL_DOWNLOAD_DIR"
+
+cat > "$SCRIPTS_DIR/pullback.sh" << 'SCRIPTEOF'
+#!/bin/bash
+set -euo pipefail
+
+REMOTE_HOST="127.0.0.1"
+REMOTE_PORT="9092"
+REMOTE_USER="PLACEHOLDER_NL_USER"
+REMOTE_DIR="PLACEHOLDER_NL_DOWNLOAD_DIR/"
+LOCAL_DIR="PLACEHOLDER_LOCAL_DOWNLOAD_DIR"
+
+SSH_OPTS="-p ${REMOTE_PORT} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+
+mkdir -p "$LOCAL_DIR"
+
+# rsync: 增量同步，排除未完成下载文件，传完自动删除源文件
+rsync -av --remove-source-files \
+    --exclude='*.!qB' \
+    --exclude='*.aria2' \
+    -e "ssh ${SSH_OPTS}" \
+    "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}" "${LOCAL_DIR}/"
+
+# 清理荷兰侧空目录
+ssh ${SSH_OPTS} "${REMOTE_USER}@${REMOTE_HOST}" \
+    "find ${REMOTE_DIR%/} -type d -empty -delete 2>/dev/null" || true
+SCRIPTEOF
+
+# 替换占位符为实际值
+sed -i '' "s|PLACEHOLDER_NL_USER|${NL_USER}|g" "$SCRIPTS_DIR/pullback.sh"
+sed -i '' "s|PLACEHOLDER_NL_DOWNLOAD_DIR|${NL_DOWNLOAD_DIR}|g" "$SCRIPTS_DIR/pullback.sh"
+sed -i '' "s|PLACEHOLDER_LOCAL_DOWNLOAD_DIR|${LOCAL_DOWNLOAD_DIR}|g" "$SCRIPTS_DIR/pullback.sh"
+
+chmod +x "$SCRIPTS_DIR/pullback.sh"
+log_info "回传脚本已写入 $SCRIPTS_DIR/pullback.sh"
