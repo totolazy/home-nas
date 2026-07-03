@@ -1,193 +1,197 @@
 #!/bin/bash
 # ============================================================
-# 瀹跺涵NAS - 鑽峰叞VPS 涓€閿儴缃茶剼鏈?#
-# 閮ㄧ讲缁勪欢:
-#   - Caddy (鍙嶅悜浠ｇ悊, 鑷姩 HTTPS)
-#   - Hysteria 2 Server (鍔犲瘑闅ч亾, 鏃?tcpForwarding)
-#   - OpenList (鏂囦欢鍒楄〃, 瑁告満瀹夎)
-#   - qBittorrent (BT 涓嬭浇, Docker)
-#   - Aria2 (澶氬崗璁笅杞? Docker)
+# HomeNAS - Netherlands VPS One-Click Deploy Script
+#
+# Components:
+#   - Caddy (reverse proxy, auto HTTPS)
+#   - Hysteria 2 Server (encrypted tunnel, no tcpForwarding)
+#   - OpenList (file listing, bare-metal install)
+#   - qBittorrent (BT download, Docker)
+#   - Aria2 (multi-protocol download, Docker)
 #   - AriaNg (Aria2 WebUI, Docker)
 #
-# 涓ゆ潯涓嬭浇璺緞:
-#   1. OpenList 鍐呯疆璋冪敤 qB/Aria2 鈫?榛樿璺緞 鈫?鑷姩涓婁紶缃戠洏
-#   2. WebUI 鎵嬪姩閫夋嫨 /opt/mac/ 鈫?Mac rsync 鍥炰紶
+# Two download paths:
+#   1. OpenList internal -> qB/Aria2 -> default path -> auto upload cloud
+#   2. WebUI manual select /opt/mac/ -> Mac rsync pullback
 #
-# 鐢ㄦ硶: chmod +x setup-netherlands.sh && sudo ./setup-netherlands.sh
+# Usage:
+#   Interactive:       sudo ./setup-netherlands.sh
+#   Non-interactive:   sudo bash setup-netherlands.sh <HY2_PASS> [OP_DOMAIN] [QB_DOMAIN] [ARIA_DOMAIN]
 # ============================================================
-set -euo pipefail
+set -eo pipefail
 
-# ============================================================
-# 棰滆壊瀹氫箟
-# ============================================================
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log_info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
-log_step()  { echo -e "\n${BLUE}==== $* ====${NC}"; }
+log_step()  { echo -e "\n${BLUE}==== $* ====${NC}\n"; }
 
 # ============================================================
-# 鏉冮檺妫€鏌?# ============================================================
-if [ "$(id -u)" -ne 0 ]; then
-    log_error "璇蜂互 root 鐢ㄦ埛杩愯姝よ剼鏈? sudo ./setup-netherlands.sh"
+# Root check
+# ============================================================
+if [ "$(id -u)" != "0" ]; then
+    log_error "Please run as root: sudo ./setup-netherlands.sh"
     exit 1
 fi
 
 # ============================================================
-# 榛樿閰嶇疆
+# Default config
 # ============================================================
-HY2_PORT=8443
-OPENLIST_PORT=5244
-QB_PORT=8080
-ARIA_PORT=6800
-ARIANG_PORT=6880
-MAC_DOWNLOAD_DIR=/opt/mac
-DEFAULT_DOWNLOAD_DIR=/opt/downloads
-ARIA2_RPC_SECRET="openlist2024"
+HY2_PORT=8443; OPENLIST_PORT=5244; QB_PORT=8080; ARIA_PORT=6800; ARIANG_PORT=6880
+MAC_DOWNLOAD_DIR=/opt/mac; DEFAULT_DOWNLOAD_DIR=/opt/downloads; ARIA2_RPC_SECRET="openlist2024"
 
 # ============================================================
-# Step 1: 浜や簰寮忚緭鍏?# ============================================================
-log_step "Step 1: 閰嶇疆纭"
-
-echo "========================================"
-echo "  瀹跺涵NAS - 鑽峰叞VPS 涓€閿儴缃茶剼鏈?
-echo "========================================"
-echo ""
-
-read -rp "璇疯緭鍏?HY2 璁よ瘉瀵嗙爜: " HY2_PASSWORD
-if [ -z "$HY2_PASSWORD" ]; then
-    log_error "HY2 璁よ瘉瀵嗙爜涓嶈兘涓虹┖"
-    exit 1
-fi
-
-read -rp "璇疯緭鍏?OpenList 瀛愬煙鍚?(榛樿: nllist.dickgroup.xyz): " DOMAIN_OPENLIST
-DOMAIN_OPENLIST=${DOMAIN_OPENLIST:-nllist.dickgroup.xyz}
-
-read -rp "璇疯緭鍏?qBittorrent 瀛愬煙鍚?(榛樿: qb.dickgroup.xyz): " DOMAIN_QB
-DOMAIN_QB=${DOMAIN_QB:-qb.dickgroup.xyz}
-
-read -rp "璇疯緭鍏?AriaNg 瀛愬煙鍚?(榛樿: aria.dickgroup.xyz): " DOMAIN_ARIA
-DOMAIN_ARIA=${DOMAIN_ARIA:-aria.dickgroup.xyz}
-
-echo ""
-log_info "閰嶇疆纭:"
-echo "  HY2 绔彛:        ${HY2_PORT}"
-echo "  OpenList 鍩熷悕:   ${DOMAIN_OPENLIST}  鈫?:${OPENLIST_PORT}"
-echo "  qB WebUI 鍩熷悕:   ${DOMAIN_QB}       鈫?:${QB_PORT}"
-echo "  AriaNg 鍩熷悕:     ${DOMAIN_ARIA}     鈫?:${ARIANG_PORT}"
-echo "  Mac 鍥炰紶鐩綍:     ${MAC_DOWNLOAD_DIR}"
-echo "  榛樿涓嬭浇鐩綍:     ${DEFAULT_DOWNLOAD_DIR} (OpenList 鈫?缃戠洏鑷姩涓婁紶)"
-echo ""
-
-read -rp "纭浠ヤ笂閰嶇疆? (y/n): " CONFIRM
-if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
-    echo "宸插彇娑堥儴缃?
-    exit 0
-fi
-
+# Step 1: Configuration (interactive or command-line args)
 # ============================================================
-# Step 2: 瀹夎绯荤粺渚濊禆
-# ============================================================
-log_step "Step 2: 瀹夎绯荤粺渚濊禆"
+log_step "Step 1: Configuration"
 
-log_info "鏇存柊杞欢鍖呭垪琛?.."
-apt-get update -y
-
-log_info "瀹夎鍩虹宸ュ叿..."
-apt-get install -y curl wget openssl ca-certificates
-
-# 瀹夎 Docker
-if ! command -v docker &>/dev/null; then
-    log_info "瀹夎 Docker..."
-    curl -fsSL https://get.docker.com | bash
-    systemctl enable --now docker
-    log_info "Docker 宸插畨瑁呭苟鍚姩"
+if [ -n "${1:-}" ]; then
+    # Non-interactive mode: args from command line
+    HY2_PASSWORD="$1"
+    DOMAIN_OPENLIST="${2:-nllist.dickgroup.xyz}"
+    DOMAIN_QB="${3:-qb.dickgroup.xyz}"
+    DOMAIN_ARIA="${4:-aria.dickgroup.xyz}"
 else
-    log_info "Docker 宸插畨瑁? $(docker --version)"
-fi
+    # Interactive mode
+    echo "========================================"
+    echo "  HomeNAS - Netherlands VPS Deploy"
+    echo "========================================"
+    echo ""
 
-# 瀹夎 Hysteria 2
-if ! command -v hysteria &>/dev/null; then
-    log_info "瀹夎 Hysteria 2..."
-    HY2_VER=$(curl -s https://api.github.com/repos/apernet/hysteria/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
-    if [ -z "$HY2_VER" ]; then
-        log_error "鏃犳硶鑾峰彇 Hysteria 2 鏈€鏂扮増鏈彿"
+    read -r -p "HY2 auth password: " HY2_PASSWORD
+    if [ -z "$HY2_PASSWORD" ]; then
+        log_error "HY2 password cannot be empty"
         exit 1
     fi
-    log_info "涓嬭浇 Hysteria 2 ${HY2_VER}..."
+
+    read -r -p "OpenList subdomain [nllist.dickgroup.xyz]: " DOMAIN_OPENLIST
+    DOMAIN_OPENLIST=${DOMAIN_OPENLIST:-nllist.dickgroup.xyz}
+
+    read -r -p "qBittorrent subdomain [qb.dickgroup.xyz]: " DOMAIN_QB
+    DOMAIN_QB=${DOMAIN_QB:-qb.dickgroup.xyz}
+
+    read -r -p "AriaNg subdomain [aria.dickgroup.xyz]: " DOMAIN_ARIA
+    DOMAIN_ARIA=${DOMAIN_ARIA:-aria.dickgroup.xyz}
+
+    echo ""
+    read -r -p "Confirm config? (y/n): " CONFIRM
+    if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
+        echo "Cancelled"
+        exit 0
+    fi
+fi
+
+log_info "HY2 port:        ${HY2_PORT}"
+log_info "OpenList domain: ${DOMAIN_OPENLIST} -> :${OPENLIST_PORT}"
+log_info "qB WebUI domain: ${DOMAIN_QB} -> :${QB_PORT}"
+log_info "AriaNg domain:   ${DOMAIN_ARIA} -> :${ARIANG_PORT}"
+log_info "Mac pullback:    ${MAC_DOWNLOAD_DIR}"
+log_info "Default dl:      ${DEFAULT_DOWNLOAD_DIR} (OpenList -> cloud auto-upload)"
+
+# ============================================================
+# Step 2: System dependencies
+# ============================================================
+log_step "Step 2: System dependencies"
+
+log_info "Updating package list..."
+apt-get update -y
+
+log_info "Installing base tools..."
+apt-get install -y curl wget openssl ca-certificates
+
+# Docker
+if ! command -v docker &>/dev/null; then
+    log_info "Installing Docker..."
+    curl -fsSL https://get.docker.com | bash
+    systemctl enable --now docker
+    log_info "Docker installed and started"
+else
+    log_info "Docker: $(docker --version 2>&1)"
+fi
+
+# Hysteria 2
+if ! command -v hysteria &>/dev/null; then
+    log_info "Installing Hysteria 2..."
+    HY2_VER=$(curl -s https://api.github.com/repos/apernet/hysteria/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
+    if [ -z "$HY2_VER" ]; then
+        log_error "Cannot get latest Hysteria 2 version"
+        exit 1
+    fi
+    log_info "Downloading Hysteria 2 ${HY2_VER}..."
     wget -q -O /usr/local/bin/hysteria "https://github.com/apernet/hysteria/releases/download/${HY2_VER}/hysteria-linux-amd64"
     chmod +x /usr/local/bin/hysteria
-    log_info "Hysteria 2 宸插畨瑁? $(hysteria version 2>&1 | head -1 || echo 'v${HY2_VER}')"
+    log_info "Hysteria 2 installed: $(hysteria version 2>&1 | head -1 || echo v${HY2_VER})"
 else
-    log_info "Hysteria 2 宸插畨瑁? $(hysteria version 2>&1 | head -1 || true)"
+    log_info "Hysteria 2: $(hysteria version 2>&1 | head -1 || true)"
 fi
 
 # ============================================================
-# Step 3: 瀹夎 Caddy
+# Step 3: Caddy (with apt fallback if getcaddy.com fails)
 # ============================================================
-log_step "Step 3: 瀹夎 Caddy"
+log_step "Step 3: Caddy"
 
 if ! command -v caddy &>/dev/null; then
-    log_info "瀹夎 Caddy..."
-    curl -fsSL https://getcaddy.com | bash -s personal
-    log_info "Caddy 宸插畨瑁? $(caddy version)"
+    log_info "Installing Caddy via official script..."
+    curl -fsSL https://getcaddy.com | bash -s personal 2>/dev/null || {
+        log_warn "getcaddy.com failed, installing via apt..."
+        apt-get install -y debian-keyring debian-archive-keyring 2>/dev/null || true
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null 2>&1 || true
+        apt-get update -y 2>/dev/null || true
+        apt-get install -y caddy || {
+            log_error "Caddy installation failed"
+            exit 1
+        }
+    }
+    log_info "Caddy installed: $(caddy version)"
 else
-    log_info "Caddy 宸插畨瑁? $(caddy version)"
+    log_info "Caddy: $(caddy version)"
 fi
 
 # ============================================================
-# Step 4: 鍒涘缓涓嬭浇鐩綍
+# Step 4: Download directories
 # ============================================================
-log_step "Step 4: 鍒涘缓涓嬭浇鐩綍"
+log_step "Step 4: Download directories"
 
-# /opt/downloads: 榛樿涓嬭浇璺緞 (OpenList 璋冪敤 qB/Aria2 鈫?鑷姩涓婁紶缃戠洏)
+# /opt/downloads: default path for OpenList-triggered downloads -> cloud auto-upload
 mkdir -p "${DEFAULT_DOWNLOAD_DIR}"
 chmod 777 "${DEFAULT_DOWNLOAD_DIR}"
-log_info "榛樿涓嬭浇鐩綍宸插垱寤? ${DEFAULT_DOWNLOAD_DIR} (OpenList 鈫?缃戠洏)"
+log_info "Default dl dir: ${DEFAULT_DOWNLOAD_DIR} (OpenList -> cloud)"
 
-# /opt/mac: Mac rsync 鍥炰紶涓撶敤鐩綍 (WebUI 鎵嬪姩閫夋嫨)
+# /opt/mac: Mac rsync pullback directory (WebUI manual selection)
 mkdir -p "${MAC_DOWNLOAD_DIR}"
 chmod 777 "${MAC_DOWNLOAD_DIR}"
-log_info "Mac 鍥炰紶鐩綍宸插垱寤? ${MAC_DOWNLOAD_DIR} (WebUI 鈫?rsync 鍥炰紶)"
+log_info "Mac pullback dir: ${MAC_DOWNLOAD_DIR} (WebUI -> rsync)"
 
 # ============================================================
-# Step 5: 瀹夎 OpenList锛堜竴閿剼鏈級
+# Step 5: OpenList (one-click install)
 # ============================================================
-log_step "Step 5: 瀹夎 OpenList"
+log_step "Step 5: OpenList"
 
 if systemctl is-active --quiet openlist 2>/dev/null; then
-    log_info "OpenList 宸插湪杩愯锛岃烦杩囧畨瑁?
+    log_info "OpenList already running"
 else
-    log_info "涓嬭浇骞舵墽琛?OpenList 瀹夎鑴氭湰..."
+    log_info "Installing OpenList..."
     curl -fsSL https://res.oplist.org/script/v4.sh -o install-openlist-v4.sh
     bash install-openlist-v4.sh
     rm -f install-openlist-v4.sh
     sleep 2
     systemctl enable --now openlist 2>/dev/null || {
-        log_warn "OpenList systemd 鏈嶅姟鏈嚜鍔ㄥ垱寤猴紝灏濊瘯鎵嬪姩鍚姩..."
+        log_warn "OpenList systemd service not auto-created, starting manually..."
         nohup /opt/openlist/openlist > /var/log/openlist.log 2>&1 &
     }
-    log_info "OpenList 宸插惎鍔紝鐩戝惉绔彛: ${OPENLIST_PORT}"
+    log_info "OpenList started on port: ${OPENLIST_PORT}"
 fi
 
 # ============================================================
-# Step 6: 閮ㄧ讲 qBittorrent锛圖ocker, --network host锛?# ============================================================
-log_step "Step 6: 閮ㄧ讲 qBittorrent"
+# Step 6: qBittorrent (Docker, --network host)
+# ============================================================
+log_step "Step 6: qBittorrent"
 
-if docker ps -a --format "{{.Names}}" | grep -q "^qbittorrent$"; then
-    log_info "绉婚櫎宸插瓨鍦ㄧ殑 qbittorrent 瀹瑰櫒..."
-    docker rm -f qbittorrent 2>/dev/null || true
-fi
-
+docker rm -f qbittorrent 2>/dev/null || true
 docker run -d --name qbittorrent \
   --network host \
-  -e PUID=1000 \
-  -e PGID=1000 \
+  -e PUID=1000 -e PGID=1000 \
   -e WEBUI_PORT=${QB_PORT} \
   -v ${DEFAULT_DOWNLOAD_DIR}:/downloads \
   -v ${MAC_DOWNLOAD_DIR}:${MAC_DOWNLOAD_DIR} \
@@ -195,19 +199,16 @@ docker run -d --name qbittorrent \
   --restart unless-stopped \
   linuxserver/qbittorrent
 
-log_info "qBittorrent 宸查儴缃诧紝WebUI 绔彛: ${QB_PORT}"
-log_info "  - 榛樿淇濆瓨璺緞: /downloads (= ${DEFAULT_DOWNLOAD_DIR}, OpenList 鑷姩涓婁紶缃戠洏)"
-log_info "  - Mac 鍥炰紶璺緞: ${MAC_DOWNLOAD_DIR} (WebUI 鎵嬪姩閫夋嫨)"
+log_info "qBittorrent deployed, WebUI port: ${QB_PORT}"
+log_info "  - Default save path: /downloads (= ${DEFAULT_DOWNLOAD_DIR}, OpenList auto-upload cloud)"
+log_info "  - Mac pullback path: ${MAC_DOWNLOAD_DIR} (WebUI manual selection)"
 
 # ============================================================
-# Step 7: 閮ㄧ讲 Aria2锛圖ocker, --network host锛?# ============================================================
-log_step "Step 7: 閮ㄧ讲 Aria2"
+# Step 7: Aria2 (Docker, --network host)
+# ============================================================
+log_step "Step 7: Aria2"
 
-if docker ps -a --format "{{.Names}}" | grep -q "^aria2$"; then
-    log_info "绉婚櫎宸插瓨鍦ㄧ殑 aria2 瀹瑰櫒..."
-    docker rm -f aria2 2>/dev/null || true
-fi
-
+docker rm -f aria2 2>/dev/null || true
 docker run -d --name aria2 \
   --network host \
   -e RPC_SECRET=${ARIA2_RPC_SECRET} \
@@ -218,51 +219,48 @@ docker run -d --name aria2 \
   --restart unless-stopped \
   p3terx/aria2-pro
 
-log_info "Aria2 宸查儴缃诧紝RPC 绔彛: ${ARIA_PORT}"
-log_info "  - 榛樿淇濆瓨璺緞: /downloads (= ${DEFAULT_DOWNLOAD_DIR}, OpenList 鑷姩涓婁紶缃戠洏)"
-log_info "  - Mac 鍥炰紶璺緞: ${MAC_DOWNLOAD_DIR} (WebUI 鎵嬪姩閫夋嫨)"
+log_info "Aria2 deployed, RPC port: ${ARIA_PORT}"
+log_info "  - Default save path: /downloads (= ${DEFAULT_DOWNLOAD_DIR}, OpenList auto-upload cloud)"
+log_info "  - Mac pullback path: ${MAC_DOWNLOAD_DIR} (WebUI manual selection)"
 
 # ============================================================
-# Step 8: 閮ㄧ讲 AriaNg锛圖ocker, --network host锛?# ============================================================
-log_step "Step 8: 閮ㄧ讲 AriaNg"
+# Step 8: AriaNg (Docker, --network host)
+# ============================================================
+log_step "Step 8: AriaNg"
 
-if docker ps -a --format "{{.Names}}" | grep -q "^ariang$"; then
-    log_info "绉婚櫎宸插瓨鍦ㄧ殑 ariang 瀹瑰櫒..."
-    docker rm -f ariang 2>/dev/null || true
-fi
-
+docker rm -f ariang 2>/dev/null || true
 docker run -d --name ariang \
   --network host \
   -e ARIANG_PORT=${ARIANG_PORT} \
   --restart unless-stopped \
   p3terx/ariang
 
-log_info "AriaNg 宸查儴缃诧紝WebUI 绔彛: ${ARIANG_PORT}"
-log_info "  - AriaNg 杩炴帴 Aria2 RPC 鏃朵娇鐢? localhost:${ARIA_PORT}"
-log_info "  - RPC 瀵嗛挜: ${ARIA2_RPC_SECRET}"
+log_info "AriaNg deployed, WebUI port: ${ARIANG_PORT}"
+log_info "  - Connect Aria2 RPC at: localhost:${ARIA_PORT}"
+log_info "  - RPC secret: ${ARIA2_RPC_SECRET}"
 
 # ============================================================
-# Step 9: 鐢熸垚 HY2 Server 閰嶇疆涓庤嚜绛惧悕璇佷功
+# Step 9: HY2 Server config & self-signed cert
 # ============================================================
-log_step "Step 9: 鐢熸垚 HY2 Server 閰嶇疆"
+log_step "Step 9: HY2 Server config"
 
 mkdir -p /etc/hysteria
 
-# 鐢熸垚鑷鍚嶈瘉涔?log_info "鐢熸垚鑷鍚嶈瘉涔?(CN=${DOMAIN_OPENLIST})..."
+log_info "Generating self-signed cert (CN=${DOMAIN_OPENLIST})..."
 openssl genrsa -out /etc/hysteria/server.key 2048
 
-# -addext 鐢ㄤ簬娣诲姞 SAN锛屽吋瀹?OpenSSL 1.1.1+
 openssl req -new -x509 -key /etc/hysteria/server.key -out /etc/hysteria/server.crt -days 3650 \
   -subj "/CN=${DOMAIN_OPENLIST}" \
   -addext "subjectAltName=DNS:${DOMAIN_OPENLIST},DNS:${DOMAIN_QB},DNS:${DOMAIN_ARIA}" \
   2>/dev/null || {
-    # 鍏煎鏃х増 OpenSSL 鐨勫洖閫€鏂规 (鏃?-addext)
-    log_warn "OpenSSL 涓嶆敮鎸?-addext锛屼娇鐢ㄥ熀纭€ CN 鏂瑰紡鐢熸垚璇佷功..."
+    log_warn "OpenSSL -addext not supported, using CN-only cert..."
     openssl req -new -x509 -key /etc/hysteria/server.key -out /etc/hysteria/server.crt -days 3650 \
       -subj "/CN=${DOMAIN_OPENLIST}"
 }
 
-# 鑽峰叞 HY2 Server 涓嶉厤 tcpForwarding锛岀鍙ｈ浆鍙戝湪 Mac Client 渚ч厤缃?cat > /etc/hysteria/server.yaml <<EOF
+# IMPORTANT: Netherlands HY2 Server does NOT configure tcpForwarding.
+# Port forwarding is configured on the Mac Client side instead.
+cat > /etc/hysteria/server.yaml <<YEOF
 listen: :${HY2_PORT}
 tls:
   cert: /etc/hysteria/server.crt
@@ -270,17 +268,17 @@ tls:
 auth:
   type: password
   password: "${HY2_PASSWORD}"
-EOF
+YEOF
 
-log_info "HY2 Server 閰嶇疆宸茬敓鎴? /etc/hysteria/server.yaml"
-log_info "  - tcpForwarding: 鏈厤缃?(绔彛杞彂鍦?Mac Client 渚?"
+log_info "HY2 config written: /etc/hysteria/server.yaml"
+log_info "  - tcpForwarding: NOT configured (handled by Mac Client)"
 
 # ============================================================
-# Step 10: 鍒涘缓 HY2 systemd 鏈嶅姟
+# Step 10: HY2 systemd service
 # ============================================================
-log_step "Step 10: 鍒涘缓 HY2 systemd 鏈嶅姟"
+log_step "Step 10: HY2 systemd service"
 
-cat > /etc/systemd/system/hysteria-server.service <<EOF
+cat > /etc/systemd/system/hysteria-server.service <<SEOF
 [Unit]
 Description=Hysteria 2 Server
 After=network.target
@@ -293,25 +291,27 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SEOF
 
 systemctl daemon-reload
 systemctl enable --now hysteria-server
+sleep 1
 
-if systemctl is-active --quiet hysteria-server; then
-    log_info "HY2 Server 宸插惎鍔ㄥ苟璁句负寮€鏈鸿嚜鍚?
+if systemctl is-active --quiet hysteria-server 2>/dev/null; then
+    log_info "HY2 Server running and enabled on boot"
 else
-    log_warn "HY2 Server 鏈兘鍚姩锛岃妫€鏌? journalctl -u hysteria-server -f"
+    log_warn "HY2 Server failed to start, check: journalctl -u hysteria-server -f"
 fi
 
 # ============================================================
-# Step 11: 鐢熸垚 Caddy 鍙嶅悜浠ｇ悊閰嶇疆
+# Step 11: Caddy reverse proxy config
 # ============================================================
-log_step "Step 11: 鐢熸垚 Caddy 閰嶇疆"
+log_step "Step 11: Caddy config"
 
 mkdir -p /etc/caddy
 
-cat > /etc/caddy/Caddyfile <<EOF
+# Caddyfile: each site block must have curly braces on separate lines
+cat > /etc/caddy/Caddyfile <<CEOF
 ${DOMAIN_OPENLIST} {
     reverse_proxy 127.0.0.1:${OPENLIST_PORT}
 }
@@ -321,64 +321,75 @@ ${DOMAIN_QB} {
 ${DOMAIN_ARIA} {
     reverse_proxy 127.0.0.1:${ARIANG_PORT}
 }
-EOF
+CEOF
+
+# Validate Caddyfile syntax before restarting
+if ! caddy validate --config /etc/caddy/Caddyfile 2>/dev/null; then
+    log_error "Caddy config validation failed"
+    cat /etc/caddy/Caddyfile
+    exit 1
+fi
 
 systemctl enable --now caddy 2>/dev/null || true
-systemctl restart caddy
+systemctl restart caddy 2>/dev/null || {
+    log_warn "Caddy restart failed, trying to start directly..."
+    systemctl start caddy 2>/dev/null || true
+}
+sleep 2
 
-if systemctl is-active --quiet caddy; then
-    log_info "Caddy 閰嶇疆宸插簲鐢ㄥ苟閲嶅惎"
+if systemctl is-active --quiet caddy 2>/dev/null; then
+    log_info "Caddy running with reverse proxy config"
 else
-    log_warn "Caddy 鏈兘鍚姩锛岃妫€鏌? journalctl -u caddy -f"
+    log_warn "Caddy failed to start, check: journalctl -u caddy -n 10"
+    journalctl -u caddy --no-pager -n 5 2>/dev/null || true
 fi
 
 # ============================================================
-# Step 12: 杈撳嚭閮ㄧ讲缁撴灉
+# Step 12: Deployment result
 # ============================================================
-log_step "Step 12: 閮ㄧ讲缁撴灉"
+log_step "Step 12: Result"
 
 echo ""
 echo "========================================"
-echo "  鑽峰叞 VPS 閮ㄧ讲瀹屾垚锛?
+echo "  Netherlands VPS Deployment Complete!"
 echo "========================================"
 echo ""
-echo "--- 鏈嶅姟鐘舵€?---"
+echo "--- Service Status ---"
 echo ""
 echo "Caddy:"
-systemctl is-active caddy 2>/dev/null && echo "  鉁?杩愯涓? || echo "  鉁?鏈繍琛?
+systemctl is-active caddy 2>/dev/null && echo "  [OK] Running" || echo "  [FAIL] Not running"
 echo ""
 echo "Hysteria 2 Server:"
-systemctl is-active hysteria-server 2>/dev/null && echo "  鉁?杩愯涓? || echo "  鉁?鏈繍琛?
+systemctl is-active hysteria-server 2>/dev/null && echo "  [OK] Running" || echo "  [FAIL] Not running"
 echo ""
 echo "OpenList:"
-systemctl is-active openlist 2>/dev/null && echo "  鉁?杩愯涓? || echo "  鉁?鏈繍琛?(璇锋鏌ュ畨瑁?"
+systemctl is-active openlist 2>/dev/null && echo "  [OK] Running" || echo "  [FAIL] Check install"
 echo ""
-echo "Docker 瀹瑰櫒:"
-docker ps --format "  {{.Names}}: {{.Status}}" 2>/dev/null || echo "  Docker 鏈繍琛?
+echo "Docker containers:"
+docker ps --format "  {{.Names}}: {{.Status}}" 2>/dev/null || echo "  N/A"
 echo ""
-echo "--- 璁块棶鍦板潃 ---"
+echo "--- URLs ---"
 echo "  OpenList:  https://${DOMAIN_OPENLIST}"
-echo "  qB WebUI:  https://${DOMAIN_QB}       (榛樿: admin / adminadmin)"
+echo "  qB WebUI:  https://${DOMAIN_QB}       (default: admin / adminadmin)"
 echo "  AriaNg:    https://${DOMAIN_ARIA}"
 echo ""
-echo "--- 鍏抽敭淇℃伅 ---"
-echo "  HY2 绔彛:           ${HY2_PORT}"
-echo "  HY2 瀵嗙爜:           ${HY2_PASSWORD}"
-echo "  Aria2 RPC 瀵嗛挜:     ${ARIA2_RPC_SECRET}"
-echo "  Aria2 RPC 绔彛:     ${ARIA_PORT}"
-echo "  榛樿涓嬭浇鐩綍:        ${DEFAULT_DOWNLOAD_DIR}  (OpenList 鈫?缃戠洏鑷姩涓婁紶)"
-echo "  Mac 鍥炰紶鐩綍:        ${MAC_DOWNLOAD_DIR}       (WebUI 鎵嬪姩閫夋嫨 鈫?rsync 鍥炰紶)"
+echo "--- Key Info ---"
+echo "  HY2 port:           ${HY2_PORT}"
+echo "  HY2 password:       ${HY2_PASSWORD}"
+echo "  Aria2 RPC secret:   ${ARIA2_RPC_SECRET}"
+echo "  Aria2 RPC port:     ${ARIA_PORT}"
+echo "  Default dl dir:     ${DEFAULT_DOWNLOAD_DIR}  (OpenList -> cloud auto-upload)"
+echo "  Mac pullback dir:   ${MAC_DOWNLOAD_DIR}       (WebUI manual -> rsync)"
 echo ""
-echo "--- 涓嬭浇璺緞璇存槑 ---"
-echo "  璺緞 1 (OpenList): 鍐呯疆璋冪敤 qB/Aria2 鈫?${DEFAULT_DOWNLOAD_DIR} 鈫?鑷姩涓婁紶缃戠洏"
-echo "  璺緞 2 (WebUI):    鎵嬪姩閫夋嫨 ${MAC_DOWNLOAD_DIR} 鈫?Mac rsync pullback"
+echo "--- Download Paths ---"
+echo "  Path 1 (OpenList): auto-call qB/Aria2 -> ${DEFAULT_DOWNLOAD_DIR} -> cloud upload"
+echo "  Path 2 (WebUI):    manual select ${MAC_DOWNLOAD_DIR} -> Mac rsync pullback"
 echo ""
-echo "--- 楠岃瘉鍛戒护 ---"
-echo "  curl -I https://${DOMAIN_OPENLIST}"
-echo "  curl -I https://${DOMAIN_QB}"
-echo "  curl -I https://${DOMAIN_ARIA}"
+echo "--- Verify ---"
+echo "  curl -k https://${DOMAIN_OPENLIST}"
+echo "  curl -k https://${DOMAIN_QB}"
+echo "  curl -k https://${DOMAIN_ARIA}"
 echo "  systemctl status hysteria-server caddy openlist"
 echo "  docker ps"
 echo ""
 echo "========================================"
-
