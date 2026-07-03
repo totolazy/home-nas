@@ -121,7 +121,9 @@ if command -v openlist &>/dev/null; then
     log_info "OpenList 已安�?
 else
     log_info "开始安�?OpenList..."
-    curl -fsSL https://raw.githubusercontent.com/OpenListTeam/OpenList/main/install.sh | bash
+    curl -fsSL https://res.oplist.org.cn/script/v4.sh -o /tmp/install-openlist-v4.sh
+    sudo bash /tmp/install-openlist-v4.sh
+    rm -f /tmp/install-openlist-v4.sh
 fi
 
 # 找到 openlist 二进制位�?OPENLIST_BIN=""
