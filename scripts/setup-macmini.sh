@@ -348,3 +348,18 @@ sed -i '' "s|PLACEHOLDER_LOCAL_DOWNLOAD_DIR|${LOCAL_DOWNLOAD_DIR}|g" "$SCRIPTS_D
 
 chmod +x "$SCRIPTS_DIR/pullback.sh"
 log_info "回传脚本已写入 $SCRIPTS_DIR/pullback.sh"
+# =============================================
+# Step 8: 配置 crontab
+# =============================================
+
+log_step "Step 8: 配置 crontab 定时回传"
+
+CRON_ENTRY="*/${RSYNC_INTERVAL} * * * * ${SCRIPTS_DIR}/pullback.sh >> ${LOG_FILE} 2>&1"
+
+# 避免重复添加
+if crontab -l 2>/dev/null | grep -F "pullback.sh" &>/dev/null; then
+    log_info "crontab 已存在回传任务，跳过"
+else
+    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+    log_info "crontab 已添加: 每 ${RSYNC_INTERVAL} min 执行回传 (日志: ${LOG_FILE})"
+fi
