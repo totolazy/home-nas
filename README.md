@@ -1,4 +1,4 @@
- # 家庭 NAS — 一键部署
+﻿ # 家庭 NAS — 一键部署
 
  三节点家庭私有云，基于 Hysteria 2 + OpenList，支持公网穿透、离线下载、网盘挂载。
 
@@ -50,13 +50,13 @@
 
  ```bash
  # 上海 VPS
- bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/家庭NAS/main/scripts/setup-shanghai.sh)
+ bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/setup-shanghai.sh)
 
  # 荷兰 VPS
- bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/家庭NAS/main/scripts/setup-netherlands.sh)
+ bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/setup-netherlands.sh)
 
  # Mac Mini
- bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/家庭NAS/main/scripts/setup-macmini.sh)
+ bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/setup-macmini.sh)
  ```
 
  脚本启动后会交互式引导你输入服务器 IP、密码等参数。
@@ -65,13 +65,13 @@
 
  ```bash
  # 上海 VPS
- bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/家庭NAS/main/scripts/teardown-shanghai.sh)
+ bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/teardown-shanghai.sh)
 
  # 荷兰 VPS
- bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/家庭NAS/main/scripts/teardown-netherlands.sh)
+ bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/teardown-netherlands.sh)
 
  # Mac Mini
- bash <(curl -fsSL https://raw.githubusercontent.com/你的用户名/家庭NAS/main/scripts/teardown-macmini.sh)
+ bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/teardown-macmini.sh)
  ```
 
  卸载脚本会清理项目所有痕迹，不破坏系统原有环境（Homebrew/Docker/Caddy 软件包保留）。
