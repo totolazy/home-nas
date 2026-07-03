@@ -7,16 +7,16 @@
  ```
                    Cloudflare DNS
                ┌──────────────────┐
-               │ openlist → 上海IP  │
-               │ nllist   → 荷兰IP  │
-               │ qb       → 荷兰IP  │
-               │ aria     → 荷兰IP  │
+               │ openlist → 国内IP  │
+               │ nllist   → 国外IP  │
+               │ qb       → 国外IP  │
+               │ aria     → 国外IP  │
                └──────────────────┘
                       │
          ┌────────────┴────────────┐
          ▼                         ▼
  ┌──────────────┐          ┌──────────────┐
- │  上海 VPS     │          │  荷兰 VPS     │
+ │  国内 VPS     │          │  国外 VPS     │
  │  Caddy HTTPS  │          │  Caddy HTTPS  │
  │  HY2 Server   │          │  HY2 Server   │
  │  tcpFwd→Mac   │          │  OpenList     │
@@ -25,8 +25,8 @@
         │                   │  AriaNg (Docker)│
  ┌──────┴───────┐          └──────┬───────┘
  │  Mac Mini M4  │                │ HY2
- │  HY2 Client→上海│               │
- │  HY2 Client→荷兰│◄─────────────┘
+ │  HY2 Client→国内│               │
+ │  HY2 Client→国外│◄─────────────┘
  │  OpenList     │    rsync 回传
  │  外接盘        │
  └──────────────┘
@@ -36,12 +36,12 @@
 
  1. **域名**：`dickgroup.xyz` 托管在 Cloudflare
  2. **DNS 记录**（提前在 Cloudflare 添加）：
-    - `openlist.dickgroup.xyz` → A → 上海服务器 IP
-    - `nllist.dickgroup.xyz` → A → 荷兰服务器 IP
-    - `qb.dickgroup.xyz` → A → 荷兰服务器 IP
-    - `aria.dickgroup.xyz` → A → 荷兰服务器 IP
- 3. **上海 VPS**：Debian/Ubuntu，root 权限，防火墙开放 80/443/UDP-8443
- 4. **荷兰 VPS**：Debian/Ubuntu，root 权限，防火墙开放 80/443/UDP-8443，已安装 Docker
+    - `域名` → A → 国内服务器 IP
+    - `域名` → A → 国外服务器 IP
+    - `域名` → A → 国外服务器 IP
+    - `域名` → A → 国外服务器 IP
+ 3. **国内 VPS**：Debian/Ubuntu，root 权限，防火墙开放 80/443/UDP-8443
+ 4. **国外 VPS**：Debian/Ubuntu，root 权限，防火墙开放 80/443/UDP-8443，已安装 Docker
  5. **Mac Mini M4**：macOS，已安装 Homebrew，外接盘已挂载
 
  ## 一键部署
@@ -49,10 +49,10 @@
  在对应机器上分别执行：
 
  ```bash
- # 上海 VPS
+ # 国内 VPS
  bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/setup-shanghai.sh)
 
- # 荷兰 VPS
+ # 国外 VPS
  bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/setup-netherlands.sh)
 
  # Mac Mini
@@ -64,10 +64,10 @@
  ## 卸载
 
  ```bash
- # 上海 VPS
+ # 国内 VPS
  bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/teardown-shanghai.sh)
 
- # 荷兰 VPS
+ # 国外 VPS
  bash <(curl -fsSL https://raw.githubusercontent.com/totolazy/home-nas/main/scripts/teardown-netherlands.sh)
 
  # Mac Mini
@@ -81,10 +81,10 @@
  部署完成后：
 
  ```bash
- # 上海：验证 HTTPS
+ # 国内：验证 HTTPS
  curl -I https://openlist.dickgroup.xyz
 
- # 荷兰：验证 HTTPS
+ # 国外：验证 HTTPS
  curl -I https://nllist.dickgroup.xyz
  curl -I https://qb.dickgroup.xyz
  curl -I https://aria.dickgroup.xyz
