@@ -147,9 +147,21 @@ if systemctl is-enabled --quiet openlist 2>/dev/null; then
     systemctl disable openlist
 fi
 
+# 确保 OpenList 进程彻底终止（systemd stop 后可能仍有残留进程）
+if [ -f /opt/openlist/openlist ]; then
+    log_info "  尝试通过 openlist CLI 终止残留进程..."
+    /opt/openlist/openlist --force-bin-dir kill 2>/dev/null || true
+    sleep 2
+    if pgrep -f "openlist server" > /dev/null 2>&1; then
+        log_warn "  检测到残留 OpenList 进程，强制终止..."
+        pkill -9 -f "openlist server" || true
+    fi
+fi
+
 rm -f /etc/systemd/system/openlist.service
 systemctl daemon-reload
 rm -rf /opt/openlist
+systemctl reset-failed openlist 2>/dev/null || true
 log_info "  OpenList 相关文件已删除。"
 
 # ============================================================
