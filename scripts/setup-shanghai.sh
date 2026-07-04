@@ -32,19 +32,17 @@ echo ""
 HY2_PORT="${HY2_PORT:-8443}"
 TUNNEL_LOCAL_PORT="${TUNNEL_LOCAL_PORT:-15244}"
 TUNNEL_REMOTE_PORT="${TUNNEL_REMOTE_PORT:-5244}"
+DEFAULT_DOMAIN="openlist.dickgroup.xyz"
+DEFAULT_HY2_PASSWORD="859456"
 
 # 交互式输入：域名
-read -r -p "域名 (默认: openlist.dickgroup.xyz): " DOMAIN
-DOMAIN="${DOMAIN:-openlist.dickgroup.xyz}"
+read -r -p "域名 (默认: ${DEFAULT_DOMAIN}): " DOMAIN
+DOMAIN="${DOMAIN:-${DEFAULT_DOMAIN}}"
 
 # 交互式输入：HY2 密码
-while [ -z "${HY2_PASSWORD:-}" ]; do
-    read -r -s -p "HY2 认证密码 (输入不会回显): " HY2_PASSWORD
-    echo ""
-    if [ -z "$HY2_PASSWORD" ]; then
-        echo "密码不能为空，请重新输入。"
-    fi
-done
+read -r -s -p "HY2 认证密码 (默认: ${DEFAULT_HY2_PASSWORD}): " HY2_PASSWORD_INPUT
+echo ""
+HY2_PASSWORD="${HY2_PASSWORD_INPUT:-${DEFAULT_HY2_PASSWORD}}"
 
 echo ""
 echo "--- 配置确认 ---"
@@ -65,12 +63,25 @@ echo ""
 echo "=== [1/6] 安装系统依赖 ==="
 
 apt-get update -qq
-apt-get install -y -qq curl wget openssl
+apt-get install -y -qq curl wget openssl apt-transport-https
 
-# Caddy
+# Caddy (apt repo, 避免 getcaddy.com SSL 问题)
 if ! command -v caddy &>/dev/null; then
     echo "安装 Caddy ..."
-    curl -fsSL https://getcaddy.com | bash -s personal
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' 2>/dev/null | \
+        gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' 2>/dev/null | \
+        tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null || true
+    apt-get update -qq 2>/dev/null || true
+    apt-get install -y caddy || {
+        echo "Caddy apt 安装失败，尝试直接下载..."
+        CADDY_VER=$(curl -s https://api.github.com/repos/caddyserver/caddy/releases/latest | grep '"tag_name"' | cut -d '"' -f 4)
+        wget -q -O /usr/bin/caddy "https://github.com/caddyserver/caddy/releases/download/${CADDY_VER}/caddy_${CADDY_VER#v}_linux_amd64.tar.gz" 2>/dev/null || true
+        curl -fsSL https://getcaddy.com | bash -s personal 2>/dev/null || {
+            echo "所有 Caddy 安装方式均失败，请手动安装。"
+            exit 1
+        }
+    }
 else
     echo "Caddy 已安装，跳过。"
 fi
@@ -180,7 +191,7 @@ echo ""
 echo "验证命令:"
 echo "  Caddy 状态:   systemctl status caddy"
 echo "  HY2 状态:     systemctl status hysteria-server"
-echo "  验证 HTTPS:   curl -I https://${DOMAIN}"
+echo "  验证 HTTPS:   curl -sI https://${DOMAIN}"
 echo "  查看日志:     journalctl -u hysteria-server -f"
 echo ""
 
@@ -198,6 +209,9 @@ if systemctl is-active --quiet hysteria-server; then
 else
     echo "  Hysteria Server:  未运行 ✗"
 fi
+
+systemctl is-enabled caddy &>/dev/null && echo "  Caddy 开机自启:    ✓" || echo "  Caddy 开机自启:    ✗"
+systemctl is-enabled hysteria-server &>/dev/null && echo "  HY2 开机自启:      ✓" || echo "  HY2 开机自启:      ✗"
 
 echo ""
 echo "部署完成。HY2 监听端口: ${HY2_PORT}，自签名证书，无 masquerade。"
